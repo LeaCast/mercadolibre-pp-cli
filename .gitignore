@@ -1,0 +1,29 @@
+# Build artifacts
+/dist/
+/build/
+*.exe
+*.tar.gz
+*.zip
+
+# Local config / secrets
+*.env
+.env.*
+config.toml
+~/.config/mercadolibre-pp-cli/
+
+# Preserve snapshots from printing-press --force
+*.preserve-*
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Go test
+*.test
+*.prof
+coverage.out
