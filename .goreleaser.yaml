@@ -17,17 +17,6 @@ builds:
       - linux_arm64
       - windows_amd64
       - windows_arm64
-    env:
-      - CGO_ENABLED=0
-    ldflags:
-      - -s -w
-    targets:
-      - darwin_amd64
-      - darwin_arm64
-      - linux_amd64
-      - linux_arm64
-      - windows_amd64
-      - windows_arm64
 archives:
   - formats: [tar.gz]
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
@@ -36,12 +25,9 @@ archives:
         formats: [zip]
 checksum:
   name_template: checksums.txt
-brews:
-  - name: mercadolibre-pp-cli
-    repository:
-      owner: LeaCast
-      name: homebrew-tap
-    homepage: "https://github.com/LeaCast/mercadolibre-pp-cli"
-    description: "CLI cross-platform para la API de MercadoLibre."
-    install: |
-      bin.install "mercadolibre-pp-cli"
+release:
+  github:
+    owner: LeaCast
+    name: mercadolibre-pp-cli
+  draft: false
+  prerelease: auto
