@@ -428,6 +428,22 @@ func (c *Client) do(ctx context.Context, method, path string, params map[string]
 	return c.doInternal(ctx, method, path, params, body, headerOverrides, false)
 }
 
+// PATCH (no-auth-on-public-endpoints): list of path prefixes that MercadoLibre
+// serves without auth AND rejects any Authorization header on. Stale tokens
+// would otherwise cause HTTP 401 on these public endpoints.
+var publicPathPrefixes = []string{
+	"/classified_locations/",
+}
+
+func isPublicPath(path string) bool {
+	for _, prefix := range publicPathPrefixes {
+		if strings.HasPrefix(path, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
 // doRead is do() minus the verify-mode mutating-verb gate. Used by the
 // PostQuery* family for read-only operations that ride a mutating verb on
 // the wire (GraphQL queries, JSON-RPC reads, POST-based search endpoints).
@@ -480,6 +496,14 @@ func (c *Client) doInternal(ctx context.Context, method, path string, params map
 	authHeader, err := c.authHeader(ctx)
 	if err != nil {
 		return nil, 0, err
+	}
+	// PATCH (no-auth-on-public-endpoints): MercadoLibre's /classified_locations/*
+	// endpoints are public and reject ANY Authorization header (including a stale
+	// token) with HTTP 401. Skip the auth header for these paths so the CLI works
+	// for users without a token AND for users whose token has expired. Documented
+	// in .printing-press-patches.json. See README "Caveats" section.
+	if isPublicPath(path) {
+		authHeader = ""
 	}
 
 	// Build the request for dry-run display or actual execution
