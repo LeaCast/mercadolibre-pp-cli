@@ -11,7 +11,8 @@ Recorré el catálogo canónico de cualquier marketplace de LATAM (Argentina, Br
 Compatible con **Claude Code, Codex, Gemini CLI, Cursor y cualquier agente** que pueda invocar una CLI o leer la convención `SKILL.md` de [agent-skills.io](https://agent-skills.io).
 
 [![Go](https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go&logoColor=white)](https://go.dev)
-[![Plataformas](https://img.shields.io/badge/plataformas-linux%20%7C%20darwin%20%7C%20windows-blue)](https://github.com/LeaCast/mercadolibre-pp-cli/releases)
+[![Plataformas](https://img.shields.io/badge/plataformas-Linux%20%7C%20macOS%20%7C%20Windows-blue)](https://github.com/LeaCast/mercadolibre-pp-cli/releases)
+[![Release](https://img.shields.io/github/v/release/LeaCast/mercadolibre-pp-cli?label=release)](https://github.com/LeaCast/mercadolibre-pp-cli/releases/latest)
 [![Licencia](https://img.shields.io/badge/licencia-MIT-green)](LICENSE)
 [![Construido con Printing Press](https://img.shields.io/badge/construido%20con-Printing%20Press-yellow)](https://printingpress.dev)
 
@@ -81,6 +82,8 @@ Descargá desde el [último release](https://github.com/LeaCast/mercadolibre-pp-
 | macOS Apple Silicon | `mercadolibre-pp-cli_<version>_darwin_arm64.tar.gz` |
 | Windows x86_64 | `mercadolibre-pp-cli_<version>_windows_amd64.zip` |
 | Windows ARM64 | `mercadolibre-pp-cli_<version>_windows_arm64.zip` |
+
+> ℹ️ Los archivos `darwin_*` son para **macOS** (Go usa `darwin` como identificador interno del kernel; es la misma plataforma).
 
 Extraé y mové el binario a tu `PATH`:
 
@@ -314,6 +317,14 @@ Las contribuciones son bienvenidas — esta CLI fue generada con [Printing Press
 4. Smoke test al comando nuevo y abrí un PR.
 
 Reportes de bugs y feature requests: [GitHub Issues](https://github.com/LeaCast/mercadolibre-pp-cli/issues).
+
+## Changelog
+
+### v0.1.1 (2026-05-24)
+- **fix:** Omitir header `Authorization` en endpoints públicos (`/classified_locations/*`). Antes el CLI mandaba el token Bearer aunque el endpoint no lo requería, y MercadoLibre rechazaba con HTTP 401 si el token estaba vencido (vida útil 6 h). Ahora `countries list` y `countries get` funcionan **sin token, con token vencido o con token inválido**. `catalog search` y demás endpoints autenticados siguen funcionando igual. Detalles del parche en [`.printing-press-patches.json`](.printing-press-patches.json).
+
+### v0.1.0 (2026-05-24)
+- Release inicial. 7 recursos: `catalog`, `categories`, `countries`, `sites`, `users`, `items`, `questions`. 6 binarios cross-platform (Linux, macOS, Windows × amd64/arm64).
 
 ## Licencia
 
