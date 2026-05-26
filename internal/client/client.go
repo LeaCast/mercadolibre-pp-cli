@@ -22,6 +22,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"mercadolibre-pp-cli/internal/cliutil"
@@ -40,6 +41,10 @@ type Client struct {
 	NoCache    bool
 	cacheDir   string
 	limiter    *cliutil.AdaptiveLimiter
+	// refreshMu serializes transparent OAuth refresh attempts so concurrent
+	// in-flight requests don't double-refresh and burn the rotating refresh
+	// token. See refresh.go and the maybeRefresh() call in authHeader().
+	refreshMu sync.Mutex
 }
 
 // APIError carries HTTP status information for structured exit codes.
@@ -684,11 +689,54 @@ func (c *Client) authHeader(ctx context.Context) (string, error) {
 	if c.Config == nil {
 		return "", nil
 	}
+	c.maybeRefresh(ctx)
 	authHeader := c.Config.AuthHeader()
 	if authHeaderLooksLikePlaceholderCredential(authHeader) {
 		return "", authPlaceholderCredentialError(c.Config)
 	}
 	return authHeader, nil
+}
+
+// maybeRefresh transparently refreshes the OAuth access token when the
+// cached expiry is within 30 minutes. Best-effort: on failure we log to
+// stderr and proceed with the current (possibly expired) token; the
+// downstream request will fail with 401 if so, which the user sees as a
+// normal API error rather than a refresh error.
+//
+// Triggers only when the full OAuth trio is present (refresh_token,
+// client_id, client_secret) AND a non-zero TokenExpiry is set. CLI users
+// in env-token-only mode (MERCADOLIBRE_ACCESS_TOKEN set, no config) skip
+// this entirely — they manage rotation themselves.
+//
+// Mutex-protected: parallel goroutines collapsing into one refresh.
+// Double-check pattern: the second caller checks expiry again under the
+// lock to avoid refreshing twice in quick succession.
+//
+// MANUAL PATCH — see .printing-press-patches.json id="transparent-token-refresh".
+func (c *Client) maybeRefresh(ctx context.Context) {
+	cfg := c.Config
+	if cfg == nil {
+		return
+	}
+	if cfg.RefreshToken == "" || cfg.ClientID == "" || cfg.ClientSecret == "" {
+		return
+	}
+	if cfg.TokenExpiry.IsZero() {
+		return
+	}
+	if time.Until(cfg.TokenExpiry) >= 30*time.Minute {
+		return
+	}
+	c.refreshMu.Lock()
+	defer c.refreshMu.Unlock()
+	// Double-check after acquiring the lock: another goroutine may have
+	// already refreshed while we were waiting.
+	if time.Until(cfg.TokenExpiry) >= 30*time.Minute {
+		return
+	}
+	if err := refreshAccessToken(ctx, cfg); err != nil {
+		fmt.Fprintf(os.Stderr, "[ml-cli] auto-refresh failed: %v; continuing with current token\n", err)
+	}
 }
 
 func authHeaderLooksLikePlaceholderCredential(header string) bool {

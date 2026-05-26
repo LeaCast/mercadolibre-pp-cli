@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "applied_at": "2026-05-24",
+  "applied_at": "2026-05-25",
   "base_run_id": "20260524-150321",
   "base_printing_press_version": "4.14.0",
   "patches": [
@@ -19,6 +19,60 @@
         }
       ],
       "upstream_issue": "https://github.com/mvanhorn/cli-printing-press/issues/new?title=Per-endpoint+auth+flag+(public+endpoints)"
+    },
+    {
+      "id": "auth-login-wizard",
+      "summary": "Add `auth login` command with browser OAuth dance + local callback server.",
+      "reason": "ML requires per-user OAuth app + manual code copy from redirect URL; the wizard eliminates the 5-step manual flow (visit URL, copy ?code= from redirect, curl /oauth/token, paste, save) and makes the CLI usable for non-technical end users. Saves client_id + client_secret + refresh_token so the transparent-token-refresh patch can keep the session alive without external cron.",
+      "files": [
+        "internal/cli/auth.go",
+        "internal/cli/auth_login.go",
+        "internal/cli/ml_sites.go"
+      ],
+      "validated_outcome": "Built binary; `auth login --help` shows full flag set (--port, --site-id) with Spanish prose. `--no-input` correctly errors with 'auth login requires interactive mode'. Listener pre-binds before browser open so port-in-use error fires cleanly. Cross-platform browser open (cmd /c start, open, xdg-open) selected via runtime.GOOS.",
+      "deferred_to_upstream": [
+        {
+          "feature": "Native OAuth Authorization Code flow in Printing Press generator (spec-level `auth.oauth2.flow: authorization_code` with `callback_port` and per-site `domain_map`).",
+          "reason": "Many APIs (ML, Slack, GitHub Apps, Notion) need the local-callback dance; today the generator only knows Client Credentials and Bearer. A generator-native flow would eliminate per-CLI wizards and standardize UX across the catalog."
+        }
+      ],
+      "upstream_issue": "https://github.com/mvanhorn/cli-printing-press/issues/new?title=Authorization+Code+OAuth+flow+(local+callback+wizard)"
+    },
+    {
+      "id": "transparent-token-refresh",
+      "summary": "Auto-refresh access token before requests when <30min to expiry; mutex-protected to collapse parallel refreshes.",
+      "reason": "ML tokens live 6h; without transparent refresh users hit 401s and need external cron jobs (schtasks on Windows, crontab on Linux). Logic lives in client.maybeRefresh() called from authHeader(); uses stdlib net/http (NOT the surf client) to avoid recursion through Client.do. On failure logs a stderr warning and falls through to the current token rather than blocking the user's command.",
+      "files": [
+        "internal/client/client.go",
+        "internal/client/refresh.go"
+      ],
+      "validated_outcome": "Built binary; `auth status` still passes with existing tokens. Refresh only triggers when full OAuth trio is present (refresh_token + client_id + client_secret), so env-token-only users are untouched. Logs '[ml-cli] token refreshed (valid until HH:MM:SS)' to stderr on success.",
+      "deferred_to_upstream": [
+        {
+          "feature": "Generator-native refresh-token rotation hook (`auth.oauth2.refresh_token: true` triggers transparent refresh + persistence).",
+          "reason": "Every Authorization Code OAuth API needs this; today every CLI built from the catalog re-invents it. Pairing this with the OAuth flow upstream patch would make ML-style auth work out of the box."
+        }
+      ],
+      "upstream_issue": "https://github.com/mvanhorn/cli-printing-press/issues/new?title=Transparent+OAuth+refresh+(stdlib+client+%2B+mutex)"
+    },
+    {
+      "id": "items-search-workflow",
+      "summary": "items search subcommand: catalog→/products/{id}/items workflow with client-side filter+sort and noise-domain pre-filter.",
+      "reason": "ML deprecated the public /sites/{id}/search endpoint in 2024 (HTTP 403 even with valid token). Real listings with price are only reachable via catalog→/products/{id}/items. This workflow papers over that API limitation. Concurrent fan-out (semaphore of 5), client-side filter parser (price=MIN-MAX, condition, shipping_cost=free, seller, currency), sort (price_asc/desc, sold_desc, relevance), and noise-domain skip (_SCREENS, _CASES, _ACCESSORIES, etc.) to avoid returning phone cases when the user searched for phones. Breaking change: top-level `items <id>` becomes `items get <id>`.",
+      "files": [
+        "internal/cli/items_search.go",
+        "internal/cli/items_get.go",
+        "internal/cli/promoted_items.go",
+        "internal/cli/ml_sites.go"
+      ],
+      "validated_outcome": "End-to-end smoke test 2026-05-25: `items search --q \"motorola edge 60\" --site-id MLA --sort price_asc --filter price=0-1000000 --limit 5 --json` returned 5 real listings (MLA3133009084 et al, prices 414729-519800 ARS, all under 1M filter), total_before_filter=81. Real permalinks (https://articulo.mercadolibre.com.ar/MLA-...). Noise domains (CELLPHONE_SCREENS, CASES) correctly skipped pre-fanout. `items get <id>` preserves old detail behavior.",
+      "deferred_to_upstream": [
+        {
+          "feature": "Workflow-as-codegen primitive in Printing Press spec format (`workflows.<name>.steps: [catalog_search, fanout, filter, sort, limit]`).",
+          "reason": "Many APIs require composing 2-3 endpoints because the natural query endpoint is unavailable, rate-limited, or returns less detail than the fanout path. A spec-level workflow primitive would replace ad-hoc Go orchestration files like this one with generated code that respects pagination, rate limits, and concurrency caps uniformly."
+        }
+      ],
+      "upstream_issue": "https://github.com/mvanhorn/cli-printing-press/issues/new?title=Workflow+primitive+(catalog+%E2%86%92+fanout+%E2%86%92+filter)"
     }
   ]
 }

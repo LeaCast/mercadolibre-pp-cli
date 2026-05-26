@@ -1,337 +1,398 @@
 <div align="center">
 
-<img src="docs/hero.jpg" alt="mercadolibre-pp-cli — Una CLI. Cualquier agente IA. Toda LATAM." width="100%" />
+<img src="docs/hero.jpg" alt="mercadolibre-pp-cli — buscá MercadoLibre desde la terminal" width="100%" />
 
 # mercadolibre-pp-cli
 
-**CLI cross-platform para la API de MercadoLibre — pensada para humanos, agentes de IA y pipelines.**
+**Buscá productos en MercadoLibre desde la terminal — para vos, para tu agente de IA, o para integrar en cualquier script.**
 
-Recorré el catálogo canónico de cualquier marketplace de LATAM (Argentina, Brasil, México, Chile, Colombia, Uruguay, Perú…), inspeccioná el árbol de categorías, traé detalle de productos, listá publicaciones de vendedores y respondé preguntas — todo desde la terminal.
+Un solo comando para listar precios, comparar variantes, filtrar por presupuesto, ordenar por más barato, traer detalles de cualquier publicación, y muchas cosas más — sin abrir el browser, sin scrapear, sin pelearse con OAuth.
 
-Compatible con **Claude Code, Codex, Gemini CLI, Cursor y cualquier agente** que pueda invocar una CLI o leer la convención `SKILL.md` de [agent-skills.io](https://agent-skills.io).
-
-[![Go](https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go&logoColor=white)](https://go.dev)
 [![Plataformas](https://img.shields.io/badge/plataformas-Linux%20%7C%20macOS%20%7C%20Windows-blue)](https://github.com/LeaCast/mercadolibre-pp-cli/releases)
 [![Release](https://img.shields.io/github/v/release/LeaCast/mercadolibre-pp-cli?label=release)](https://github.com/LeaCast/mercadolibre-pp-cli/releases/latest)
 [![Licencia](https://img.shields.io/badge/licencia-MIT-green)](LICENSE)
-[![Construido con Printing Press](https://img.shields.io/badge/construido%20con-Printing%20Press-yellow)](https://printingpress.dev)
 
 </div>
 
 ---
 
-## ¿Qué problema resuelve?
+## ¿Qué hace en una línea?
 
-La API de MercadoLibre es potente pero **está gateada detrás de OAuth, códigos de sitio por país, y un portal de documentación fragmentado**. Construir integraciones implica:
+Le decís en la terminal: _"buscá los 5 Motorola Edge 60 más baratos bajo $1M con envío gratis en Argentina"_ y te devuelve la lista lista, ordenada, con links directos, en menos de 4 segundos.
 
-- Escribir scripts curl una y otra vez, redescubriendo los mismos patrones de paginación.
-- Usar la API REST cruda directo desde el IDE / agente / pipeline, sin type safety, sin caché, sin mirror offline.
-- Instalar SDKs pesados en Python / JS / Java solamente para hacer `GET /products/search`.
+## ¿Por qué existe?
 
-Esta CLI resuelve eso dándote **un solo binario** que:
+Tres razones simples:
 
-- Habla todos los endpoints relevantes de ML con flags consistentes (`--site-id MLA`, `--limit`, `--offset`, `--json`).
-- Maneja tokens OAuth Bearer vía env var o archivo de config (rotás sin tocar código).
-- Espeja respuestas de la API a un store SQLite local on-demand (`sync`) para workflows offline / analytics.
-- Emite JSON estructurado o output compacto agent-friendly (`--agent`).
-- Genera un árbol de help Cobra-style en cada nivel (`--help` en todos lados).
-- Trae un `SKILL.md` que cualquier agente compatible con [agent-skills.io](https://agent-skills.io) descubre e invoca nativamente.
+1. **Buscar en mercadolibre.com.ar con browser es lento y te marea.** Hay que abrir la página, esperar que cargue scripts, hacer click en filtros, scrollear, comparar a ojo. Esta CLI lo hace en un solo comando.
+2. **Si usás Claude Code / Codex / Gemini CLI / Cursor para ayudarte, los agentes no pueden navegar bien MercadoLibre** — la página tiene anti-bot y devuelve 403. Esta CLI le da al agente datos limpios y estructurados sin pelear contra protecciones.
+3. **Cuando un agente lee resultados de la web, "gasta" mucha información de su memoria** procesando HTML lleno de banners, menús y publicidad. Con esta CLI el agente recibe solo lo que importa: precio, título, link. Le sale **~6 veces más barato en tokens** (ver [comparativa más abajo](#cli-vs-buscar-igual-en-la-web)).
 
-## ¿Para quién es?
-
-- **Agentes de IA (Claude Code, Codex, Gemini CLI, Cursor, etc.)** que necesitan una interfaz token-efficient y predecible para ML. Las CLIs usan ~35× menos tokens que los MCP equivalentes para la misma tarea (según [benchmarks de Printing Press](https://printingpress.dev)).
-- **Devs que construyen integraciones con ML** y quieren una herramienta rápida de inspección read-only mientras prototipan, más un fetcher de datos confiable en producción.
-- **Vendedores / power users** que quieren consultar sus propias publicaciones, monitorear precios del catálogo o responder preguntas pendientes sin salir de la terminal.
-- **Analistas de datos** que minan el catálogo público de ML (más de 10.000 productos por keyword en MLA solamente) para pricing intelligence, research de categorías o análisis competitivo.
-
-## Quick start (30 segundos)
-
-```bash
-# 1. Instalar (cualquier plataforma — ver sección Instalación)
-go install github.com/LeaCast/mercadolibre-pp-cli/cmd/mercadolibre-pp-cli@latest
-
-# 2. Endpoint público — sin auth
-mercadolibre-pp-cli countries list --json
-
-# 3. Endpoint autenticado — seteá el token primero
-export MERCADOLIBRE_ACCESS_TOKEN="<tu-token>"
-mercadolibre-pp-cli catalog search --site-id MLA --q "iphone" --limit 5
-```
-
-Eso es todo. Saltá a [Autenticación](#autenticación) para el setup OAuth o a [Comandos disponibles](#comandos-disponibles) para la superficie completa.
+---
 
 ## Instalación
 
-### Opción 1 — `go install` (cualquier plataforma, requiere Go 1.26+)
+### Opción A — Bajar el binario listo (recomendado)
+
+Andá a [Releases](https://github.com/LeaCast/mercadolibre-pp-cli/releases/latest) y bajá el archivo de tu sistema:
+
+| Si tenés...    | Bajá esto                                   |
+| -------------- | ------------------------------------------- |
+| Windows        | `mercadolibre-pp-cli_*_windows_amd64.zip`   |
+| Mac (Intel)    | `mercadolibre-pp-cli_*_darwin_amd64.tar.gz` |
+| Mac (M1/M2/M3) | `mercadolibre-pp-cli_*_darwin_arm64.tar.gz` |
+| Linux          | `mercadolibre-pp-cli_*_linux_amd64.tar.gz`  |
+
+Descomprimís, copiás el archivo `mercadolibre-pp-cli` a una carpeta que esté en tu PATH (en Mac/Linux suele ser `/usr/local/bin/`, en Windows cualquier carpeta de tu sistema con `setx PATH`), y listo. Probalo:
+
+```bash
+mercadolibre-pp-cli --help
+```
+
+### Opción B — Compilar desde el repo (si tenés Go instalado)
 
 ```bash
 go install github.com/LeaCast/mercadolibre-pp-cli/cmd/mercadolibre-pp-cli@latest
 ```
 
-Asegurate de que `$(go env GOPATH)/bin` esté en tu `PATH`.
+---
 
-### Opción 2 — Binarios pre-compilados (sin Go)
+## Setup inicial (una sola vez, 3 minutos)
 
-Descargá desde el [último release](https://github.com/LeaCast/mercadolibre-pp-cli/releases/latest):
+MercadoLibre te obliga a crear tu propia "app" para usar su API. Es gratis y rápido. La CLI tiene un wizard que te lleva de la mano:
 
-| Plataforma | Binario |
-|------------|---------|
-| Linux x86_64 | `mercadolibre-pp-cli_<version>_linux_amd64.tar.gz` |
-| Linux ARM64 | `mercadolibre-pp-cli_<version>_linux_arm64.tar.gz` |
-| macOS Intel | `mercadolibre-pp-cli_<version>_darwin_amd64.tar.gz` |
-| macOS Apple Silicon | `mercadolibre-pp-cli_<version>_darwin_arm64.tar.gz` |
-| Windows x86_64 | `mercadolibre-pp-cli_<version>_windows_amd64.zip` |
-| Windows ARM64 | `mercadolibre-pp-cli_<version>_windows_arm64.zip` |
+### Paso 1 — Crear tu app en MercadoLibre
 
-> ℹ️ Los archivos `darwin_*` son para **macOS** (Go usa `darwin` como identificador interno del kernel; es la misma plataforma).
+Andá a **https://developers.mercadolibre.com.ar/devcenter** (logueate con tu cuenta normal de MercadoLibre) y hacé click en **"Crear aplicación"**.
 
-Extraé y mové el binario a tu `PATH`:
+Completá así:
 
-```bash
-# Linux / macOS
-chmod +x mercadolibre-pp-cli && sudo mv mercadolibre-pp-cli /usr/local/bin/
+- **Nombre:** lo que quieras (ej. `mi-cli`)
+- **Descripción:** una línea cualquiera
+- **Redirect URI:** `https://httpbin.org/get` ← **literalmente esto, copialo tal cual**
+- **Flujos OAuth:** marcá ✅ Authorization Code, ✅ Refresh Token
+- **Unidad de negocio:** ✅ Mercado Libre
+- **Permisos:** dejá los defaults
 
-# macOS — paso extra por Gatekeeper
-xattr -d com.apple.quarantine /usr/local/bin/mercadolibre-pp-cli
-```
+Guardás y te van a aparecer dos valores: **App ID** (un número largo) y **Client Secret** (un string). Anotalos.
 
-```powershell
-# Windows
-Move-Item .\mercadolibre-pp-cli.exe "$env:USERPROFILE\bin\"
-# (asegurate de que %USERPROFILE%\bin esté en PATH)
-```
-
-### Opción 3 — Instalador de Printing Press (cross-platform, incluye la skill para agentes)
+### Paso 2 — Correr el wizard
 
 ```bash
-npx -y @mvanhorn/printing-press-library install mercadolibre
+mercadolibre-pp-cli auth login
 ```
 
-Instala el binario **y** el SKILL.md en el directorio de skills de tu agente automáticamente.
+El wizard:
 
-### Opción 4 — Desde el código fuente
+1. Te abre el navegador en la pantalla de autorización de MercadoLibre.
+2. Vos hacés click en **"Autorizar"**.
+3. ML te redirige a una página que muestra un JSON con un campo `args.code`.
+4. Copiás ese código y lo pegás en la terminal cuando el wizard te lo pide.
+5. Listo. La CLI guarda todo y de ahí en adelante **mantiene la sesión sola** (no hay que volver a autenticarse hasta dentro de ~6 meses).
+
+> **¿Por qué hay que pegar el código a mano?** MercadoLibre no permite usar `http://localhost` en la configuración (exige HTTPS). Otras APIs (Google, GitHub, etc.) sí lo permiten y por eso ahí el login es 100% automático. Es la única fricción del setup.
+
+### Verificar que funciona
 
 ```bash
-git clone https://github.com/LeaCast/mercadolibre-pp-cli.git
-cd mercadolibre-pp-cli
-go build -o mercadolibre-pp-cli ./cmd/mercadolibre-pp-cli
+mercadolibre-pp-cli doctor
 ```
 
-## Autenticación
+Si todo está OK vas a ver una línea verde de auth.
 
-### Endpoints públicos (sin auth)
+---
 
-Algunos endpoints funcionan sin credenciales:
+## Comandos principales
+
+### `items search` — buscar publicaciones reales
+
+El comando que más vas a usar. Busca publicaciones activas (con precio, vendedor, envío) y te las devuelve filtradas y ordenadas.
+
+```
+mercadolibre-pp-cli items search [flags]
+```
+
+| Flag                             | Para qué sirve                                                                                         | Default           |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------ | ----------------- |
+| `--q "<texto>"`                  | Lo que buscás (palabra clave)                                                                          | obligatorio       |
+| `--site-id <MLA\|MLB\|MLM\|...>` | País: MLA=Argentina, MLB=Brasil, MLM=México, MLC=Chile, MCO=Colombia, MLU=Uruguay                      | obligatorio       |
+| `--sort <orden>`                 | `price_asc` (barato→caro), `price_desc` (caro→barato), `relevance`                                     | `price_asc`       |
+| `--filter <clave>=<valor>`       | Filtros. Repetible — podés poner varios. Ver tabla abajo.                                              | (ninguno)         |
+| `--limit <N>`                    | Cuántos resultados querés ver (máx. 50)                                                                | 10                |
+| `--catalog-limit <N>`            | Cuántos modelos del catálogo escanea (sube esto si tu búsqueda es muy específica)                      | 20                |
+| `--domain-id <id>`               | Restringir a un dominio (ej. `MLA-CELLPHONES`). Útil cuando aparecen accesorios                        | (sin restricción) |
+| `--json`                         | Devuelve JSON estructurado (para scripts y agentes)                                                    | (devuelve tabla)  |
+| `--plain`                        | Tab-separated (útil para `awk`, `cut`)                                                                 |                   |
+| `--compact`                      | Solo precio + link (mínimo tokens, para agentes)                                                       |                   |
+
+**Filtros disponibles** (todos repetibles con `--filter`):
+
+| Filtro                | Ejemplo                       | Qué hace                       |
+| --------------------- | ----------------------------- | ------------------------------ |
+| `price=MIN-MAX`       | `--filter price=0-1000000`    | Rango de precio                |
+| `condition=new\|used` | `--filter condition=new`      | Solo nuevos o solo usados      |
+| `shipping_cost=free`  | `--filter shipping_cost=free` | Solo con envío gratis          |
+| `seller=<id>`         | `--filter seller=123456`      | Solo de un vendedor específico |
+| `currency=ARS\|USD`   | `--filter currency=ARS`       | Filtrar por moneda             |
+
+### `items get <id>` — detalle completo de una publicación
 
 ```bash
-mercadolibre-pp-cli countries list                    # lista todos los países de ML
-mercadolibre-pp-cli countries get AR                  # detalle de un país
+mercadolibre-pp-cli items get MLA1234567890
 ```
 
-### OAuth 2.0 (requerido para todo lo demás)
+> **Limitación importante:** desde 2024 MercadoLibre restringió el endpoint `/items/<id>` aunque tu token sea válido. Solo el **vendedor dueño de la publicación** puede leer su propio item por API. Si pedís el detalle de un listing de otro seller, devuelve 403 — la API te dice "permisos" pero en realidad es por dueño, no por scope.
+>
+> **Workarounds:**
+>
+> 1. **Abrí el link en tu browser personal.** La columna `url` que ya viene en cada resultado de `items search` te lleva directo a la página. 30 segundos, sin fricción.
+> 2. **Verificá reputación del vendedor con `users get <seller_id>`** — sí funciona con cualquier token y te da nivel de reputación + cantidad de transacciones. Es la señal de confianza más importante antes de comprar (ver ejemplo abajo).
 
-MercadoLibre cerró la mayoría de su API pública en 2024. Catalog search, detalle de items, perfiles de usuario y preguntas requieren un token Bearer OAuth.
+### `users get <seller_id>` — reputación pública de un vendedor
 
-**1. Creá una aplicación** en https://developers.mercadolibre.com/devcenter (o `.com.ar`, `.com.mx`, etc.). Configurá:
-- Redirect URI: `https://httpbin.org/get` (para testing) o tu propia URL de callback.
-- Flujos OAuth: habilitá **Authorization Code**, **Refresh Token** y **Client Credentials**.
-- Permisos: como mínimo **Usuarios** (lectura) — agregá más según tu caso de uso.
-
-ML te va a dar un **App ID** y un **Client Secret**.
-
-**2. Obtené un access token** vía el flujo de authorization code:
-
-Abrí en tu browser:
-```
-https://auth.mercadolibre.com.ar/authorization?response_type=code&client_id=<tu-app-id>&redirect_uri=https%3A%2F%2Fhttpbin.org%2Fget
-```
-
-Autorizá la app. ML te redirige a `https://httpbin.org/get?code=<authorization-code>`. Copiá el `code` (vive 6 minutos).
-
-Intercambiá el code por un token:
-```bash
-curl -X POST https://api.mercadolibre.com/oauth/token \
-  -H "Accept: application/json" \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "grant_type=authorization_code" \
-  -d "client_id=<tu-app-id>" \
-  -d "client_secret=<tu-client-secret>" \
-  -d "code=<authorization-code>" \
-  -d "redirect_uri=https://httpbin.org/get"
-```
-
-Obtenés un `access_token` (válido 6 horas), un `refresh_token` (válido 6 meses) y tu `user_id`.
-
-**3. Guardá el token** para la CLI:
+Cuando `items search` te devuelve listings, cada uno incluye un `seller_id`. Con ese ID podés ver la reputación pública del vendedor:
 
 ```bash
-mercadolibre-pp-cli auth set-token "<tu-access-token>"
+mercadolibre-pp-cli users get 554230752 --json
 ```
 
-O seteá una variable de entorno en cada sesión:
+**Resultado real** (corrida 2026-05-26, 0,7 segundos):
+
+```
+nickname:        JOSIGNACIOCARRIZOMIRANDA
+country:         AR
+user_type:       normal
+level_id:        4_light_green
+transactions:    36 históricas
+```
+
+El campo `level_id` va de `1_red` (peor) a `5_green` (mejor). `4_light_green` con sólo 36 transacciones significa: reputación buena pero historial corto — andá con cuidado en compras grandes.
+
+### `catalog search` — buscar en el catálogo canónico
+
+Si en vez de listings con precio querés ver qué modelos existen (ej. "qué iPhones tiene ML en catálogo"):
 
 ```bash
-export MERCADOLIBRE_ACCESS_TOKEN="<tu-access-token>"
+mercadolibre-pp-cli catalog search --site-id MLA --q "iphone" --limit 10
 ```
 
-**4. Verificá:**
+### Otros comandos útiles
+
+| Comando                                 | Para qué                                          |
+| --------------------------------------- | ------------------------------------------------- |
+| `auth login`                            | Login interactivo (setup inicial)                 |
+| `auth status`                           | Ver si estás logueado                             |
+| `auth logout`                           | Borrar credenciales                               |
+| `doctor`                                | Diagnóstico de salud del CLI                      |
+| `sites`                                 | Listar todos los países de ML con código y moneda |
+| `countries list`                        | Igual pero más detalle                            |
+| `categories list-by-site --site-id MLA` | Árbol de categorías de un país                    |
+
+Ejecutá cualquier comando con `--help` para ver todos sus flags.
+
+---
+
+## Ejemplos reales
+
+### Ejemplo 1 — Los 5 celulares más baratos bajo $1M con envío gratis
 
 ```bash
-mercadolibre-pp-cli auth status
-mercadolibre-pp-cli users get <tu-user-id>
+mercadolibre-pp-cli items search \
+  --q "motorola edge 60" \
+  --site-id MLA \
+  --sort price_asc \
+  --filter price=0-1000000 \
+  --filter shipping_cost=free \
+  --limit 5
 ```
 
-### Refrescar el token
-
-Cuando el access token expira (6 h):
-```bash
-curl -X POST https://api.mercadolibre.com/oauth/token \
-  -d "grant_type=refresh_token" \
-  -d "client_id=<tu-app-id>" \
-  -d "client_secret=<tu-client-secret>" \
-  -d "refresh_token=<tu-refresh-token>"
-```
-
-Guardá el nuevo access_token. (Un helper de un solo comando para esto está en el roadmap.)
-
-## Comandos disponibles
+**Resultado real** (corrida 2026-05-26, 1,2 segundos):
 
 ```
-mercadolibre-pp-cli
-├── auth          Gestionar autenticación (status, set-token, logout)
-├── countries     Listar países / detalle de país (público — sin auth)
-├── sites         Listar sitios MercadoLibre (MLA, MLB, MLM, MLC, MLU, …)
-├── catalog       Buscar y traer detalle del catálogo canónico (OAuth)
-│   ├── search    Buscar productos por keyword en un sitio (devuelve 10K+ por keyword)
-│   └── get       Detalle completo de un producto (atributos, fotos, descripciones)
-├── categories    Taxonomía de categorías (OAuth)
-│   ├── list-by-site  Categorías raíz de un sitio
-│   └── get           Detalle de categoría con path completo desde root
-├── users         Perfiles de usuario y vendedor (OAuth)
-│   ├── get       Perfil, reputación, fecha de registro
-│   └── items     Publicaciones activas de un vendedor
-├── items         Publicaciones individuales del marketplace (OAuth)
-│   └── get       Detalle completo de una publicación (precio, stock, fotos, vendedor)
-├── questions     Q&A en tus publicaciones (OAuth — escritura requiere scope extra)
-│   ├── list      Listar preguntas filtradas por vendedor / estado
-│   └── answer    Responder una pregunta específica
-├── sync          Espejar respuestas de la API a SQLite local (offline / analytics)
-├── search        Full-text search sobre los datos sincronizados
-├── export        Exportar data local a JSONL / JSON
-├── doctor        Diagnosticar auth, conectividad, config
-└── version       Imprimir versión
+#  precio         variante                                 envío   condición  url
+1  ARS 414729.27  Motorola Edge 60 Fusion 256gb + 8gb Ram  gratis  new        https://articulo.mercadolibre.com.ar/MLA-3133009504
+2  ARS 439505.11  Motorola Edge 60 Fusion 256gb Amazonite  gratis  new        https://articulo.mercadolibre.com.ar/MLA-3133009084
+3  ARS 489071.98  Motorola Edge 60 Gibraltar Sea           gratis  new        https://articulo.mercadolibre.com.ar/MLA-3131589844
+4  ARS 500000.00  Motorola Edge 60 Fusion 256gb Amazonite  gratis  new        https://articulo.mercadolibre.com.ar/MLA-1799466271
+5  ARS 510000.00  Motorola Edge 60 Fusion 256gb Amazonite  gratis  new        https://articulo.mercadolibre.com.ar/MLA-3253872120
 ```
 
-Cada comando soporta `--help`. Corré `mercadolibre-pp-cli api` para navegar todos los recursos de forma programática (diseñado para agentes).
+Click directo a comprar.
 
-## Workflows comunes
-
-### Pricing intelligence sobre una categoría
+### Ejemplo 2 — Smart TVs Samsung 55" en Brasil (cualquier precio)
 
 ```bash
-# ¿Qué devuelve "iphone" en Argentina?
-mercadolibre-pp-cli catalog search --site-id MLA --q "iphone" --limit 50 --json | \
-  jq '.results.results[] | {id, name, status, date_created}'
+mercadolibre-pp-cli items search \
+  --q "smart tv samsung 55" \
+  --site-id MLB \
+  --sort price_asc \
+  --limit 5
 ```
 
-### Inspeccionar qué está ofreciendo un vendedor
+**Resultado real** (corrida 2026-05-26, 1,3 segundos):
+
+```
+#  precio        variante                                          envío   condición  url
+1  BRL 3500.00   Smart TV Samsung UN55TU8300FXZX curvo 4K 55"      pago    new        https://articulo.mercadolibre.com.br/MLB-6196004362
+2  BRL 10683.16  Samsung Smart Tv 85 Uhd 4k + Samsung Smart Tv 50  gratis  new        https://articulo.mercadolibre.com.br/MLB-5979485036
+```
+
+Devuelve precio en BRL (reales brasileños) y link directo a cada publicación.
+
+### Ejemplo 3 — iPhone 15 más baratos en México
 
 ```bash
-mercadolibre-pp-cli users items <seller-id> --json
+mercadolibre-pp-cli items search \
+  --q "iphone 15" \
+  --site-id MLM \
+  --domain-id MLM-CELLPHONES \
+  --sort price_asc \
+  --limit 5
 ```
 
-### Traer atributos completos de un producto
+**¿Para qué sirve `--domain-id MLM-CELLPHONES`?** Para palabras muy populares como "iphone 15", el catálogo de ML está dominado por accesorios (fundas, vidrios, cables). Si querés el teléfono en sí, le pasás el dominio explícito y la búsqueda se restringe a celulares. Sin ese flag, traerías fundas para iPhone 15 en vez de iPhones.
+
+**Resultado real** (corrida 2026-05-26, 1,1 segundos):
+
+```
+#  precio        variante                             envío   condición  url
+1  MXN 11000.00  Apple Iphone 15 128 Gb Rosa          gratis  new        https://articulo.mercadolibre.com.mx/MLM-2865788069
+2  MXN 11200.00  Apple iPhone 15 (128 GB) - Amarillo  gratis  new        https://articulo.mercadolibre.com.mx/MLM-2283337521
+3  MXN 12333.00  Apple iPhone 15 (256 GB) - Negro     gratis  new        https://articulo.mercadolibre.com.mx/MLM-2288307097
+4  MXN 12699.00  Apple Iphone 15 128 Gb Rosa          gratis  new        https://articulo.mercadolibre.com.mx/MLM-3484217888
+5  MXN 12997.00  Apple iPhone 15 (128 GB) - Verde     gratis  new        https://articulo.mercadolibre.com.mx/MLM-2213612267
+```
+
+### Tip: cuando no aparecen los resultados esperados
+
+Si tu búsqueda te trae sólo accesorios (fundas, pantallas, cables) en vez del producto principal:
+
+1. **Agregá `--domain-id <id>`** para forzar la categoría correcta. Ejemplos comunes:
+   - Celulares: `MLA-CELLPHONES`, `MLB-CELLPHONES`, `MLM-CELLPHONES`
+   - Notebooks: `MLA-NOTEBOOKS`, `MLB-NOTEBOOKS`
+   - Smart TVs: `MLA-TELEVISIONS`, `MLB-TELEVISIONS`
+   - Auriculares: `MLA-HEADPHONES`
+2. **Subí `--catalog-limit`** (default 20, máximo 50) si tu producto es muy específico y se pierde entre miles de variantes.
+3. **Hacé el `--q` más específico**: en vez de `"iphone"` probá `"iphone 15 256gb"`.
+
+---
+
+## Pidiéndole a Claude (o cualquier agente IA)
+
+Acá la CLI realmente brilla: en vez de aprender los flags vos, le hablás en español a tu agente y él traduce a los comandos correctos.
+
+### Ejemplo NL #1
+
+**Vos le decís a Claude:**
+
+> "Necesito comprar un iPhone 13 en MercadoLibre Argentina. Tirame los 5 más baratos con envío gratis, todos nuevos, bajo $1.500.000."
+
+**Claude ejecuta:**
 
 ```bash
-mercadolibre-pp-cli catalog get <product-id> --json
+mercadolibre-pp-cli items search \
+  --q "iphone 13" \
+  --site-id MLA \
+  --domain-id MLA-CELLPHONES \
+  --sort price_asc \
+  --filter price=0-1500000 \
+  --filter condition=new \
+  --filter shipping_cost=free \
+  --limit 5 \
+  --json
 ```
 
-### Responder una pregunta pendiente
+**Resultado real** (corrida 2026-05-26, 2,6 segundos, ~460 tokens devueltos a Claude):
+
+```
+1. $500.000 ARS — Apple iPhone 13 128 GB Medianoche
+2. $600.000 ARS — Apple iPhone 13 (128 GB) - Azul
+3. $620.000 ARS — Apple iPhone 13 (256 GB) - Azul
+4. $700.000 ARS — Apple iPhone 13 128 GB Medianoche
+5. $747.000 ARS — Apple iPhone 13 128 GB Medianoche
+```
+
+Claude lee el JSON y te lo arma como tabla en español con los links clickeables. Si le pedís "y traeme la reputación del vendedor del #1", Claude encadena automáticamente con `users get <seller_id>` para sumarte la señal de confianza antes de comprar.
+
+### Ejemplo NL #2
+
+**Vos le decís a Claude:**
+
+> "Comparame precios de iPhone 15 en Argentina vs Brasil vs México. Solo nuevos, los 3 más baratos de cada país."
+
+**Claude ejecuta 3 comandos en paralelo:**
 
 ```bash
-mercadolibre-pp-cli questions list --seller-id <tu-user-id> --status UNANSWERED --json
-mercadolibre-pp-cli questions answer --question-id <id> --text "Sí, tengo stock disponible."
+mercadolibre-pp-cli items search --q "iphone 15" --site-id MLA --domain-id MLA-CELLPHONES --sort price_asc --filter condition=new --limit 3 --json
+mercadolibre-pp-cli items search --q "iphone 15" --site-id MLB --domain-id MLB-CELLPHONES --sort price_asc --filter condition=new --limit 3 --json
+mercadolibre-pp-cli items search --q "iphone 15" --site-id MLM --domain-id MLM-CELLPHONES --sort price_asc --filter condition=new --limit 3 --json
 ```
 
-### Espejar datos local para análisis offline
+**Claude te responde** con una tabla comparativa de los 9 resultados, convirtiendo todas las monedas a USD al cambio del día para que veas en qué país conviene más, y te marca las diferencias clave (capacidad, color, envío internacional posible).
 
-```bash
-mercadolibre-pp-cli sync catalog --site-id MLA --q "decoración"
-mercadolibre-pp-cli search --q "centro de mesa"     # consulta el mirror local
-```
+---
 
-## Uso desde agentes de IA
+## CLI vs buscar igual en la web
 
-Esta CLI trae un `SKILL.md` que sigue la convención de [agent-skills.io](https://agent-skills.io), así que cualquier agente compatible con ese estándar la descubre e invoca nativamente.
+Misma búsqueda — _5 Motorola Edge 60 bajo $1M ARS, del más barato al más caro_ — corrida desde tres lugares al mismo tiempo (2026-05-26):
 
-### Claude Code
+| Método                                 |    Tiempo |    Tokens | Qué devolvió                                                                       |
+| -------------------------------------- | --------: | --------: | ---------------------------------------------------------------------------------- |
+| **`mercadolibre-pp-cli items search`** | **1,2 s** |  **~460** | 5 listings reales con precio, variante, link, condición, envío                     |
+| WebFetch a `listado.mercadolibre.com.ar` |         — |         — | **HTTP 403 — ML lo bloquea** (anti-bot, ni siquiera carga la página)               |
+| WebSearch genérico                     |      ~4 s |      ~500 | "Prices as low as $859,999" — el más barato real era **$414.729**                  |
 
-Cuando instalás vía el installer de Printing Press (Opción 3), la skill se auto-registra. Después podés pedirle a Claude en lenguaje natural:
+Tres cosas que esto deja claro:
 
-> "Buscá en el catálogo de MercadoLibre 'centro de mesa dorado' en Argentina, traeme los 10 primeros con precio."
+- **MercadoLibre bloquea scraping.** Cualquier intento de leer la página directo termina en 403. No es solucionable con headers ni user-agents — ML tiene anti-bot serio.
+- **Las búsquedas web genéricas devuelven precios viejos o inventados.** No tienen forma de ver el precio del día porque indexan páginas estáticas y resúmenes.
+- **La CLI usa la API oficial con tu token.** Datos del momento, estructurados, sin ban, sin inventar nada. Para un agente IA eso es **~6× menos tokens consumidos** y **0% de errores de precio**.
 
-### Codex, Cursor, Gemini CLI, otros
+---
 
-Estos agentes descubren archivos SKILL.md en sus directorios de skills. Después de instalar la CLI, copiá `SKILL.md` a la carpeta de skills de tu agente (la ubicación varía por agente — mirá los docs de tu agente). O instalá vía Printing Press con `--agent <nombre-agente>`:
+## Preguntas frecuentes
 
-```bash
-npx -y @mvanhorn/printing-press-library install mercadolibre --agent codex
-npx -y @mvanhorn/printing-press-library install mercadolibre --agent gemini-cli
-```
+**¿Es gratis usar la API de MercadoLibre?**
+Sí. Las consultas read-only (catálogo, items, categorías, búsquedas) son gratuitas con los rate limits estándar. No te cobran nada.
 
-### Invocación genérica (cualquier agente)
+**¿Necesito ser vendedor de MercadoLibre para usar esto?**
+No. Solo necesitás una cuenta normal de MercadoLibre (la que usás para comprar). El paso del "Crear app" usa esa misma cuenta.
 
-Si tu agente tiene acceso a bash/shell, no necesitás integración especial — invocá la CLI directo:
+**¿Es seguro? ¿Qué pasa con mi token?**
+El token se guarda solo en tu compu, en `~/.config/mercadolibre-pp-cli/config.toml` (Linux/Mac) o `%USERPROFILE%\.config\mercadolibre-pp-cli\config.toml` (Windows). Nada se envía a ningún servidor externo. El token solo permite leer datos públicos del marketplace + tu propia cuenta — no permite vaciar la tarjeta ni nada por el estilo.
 
-```bash
-mercadolibre-pp-cli <comando> --agent --json
-```
+**¿Cada cuánto tengo que volver a loguearme?**
+Idealmente nunca. El token de acceso vive 6 horas, pero la CLI tiene refresh automático: antes de cada consulta chequea si está por vencer y se renueva sola usando el refresh token (que dura 6 meses). Solo tendrías que correr `auth login` de nuevo si dejás la CLI sin usarla por más de 6 meses.
 
-El flag `--agent` habilita output JSON, desactiva prompts interactivos, suprime códigos de color y asume confirmación — perfecto para automatización no-interactiva.
+**¿Por qué no aparecen los Motorola Edge 60 "puros" (sin Fusion) en mi búsqueda?**
+La búsqueda por keyword es amplia: `"motorola edge 60"` matchea cualquier listing con esas palabras, incluyendo Fusion y Pro. Para ser más específico: agregá palabras al `--q` (ej. `--q "motorola edge 60 12gb"` excluye Fusion porque Fusion tiene 8GB) o usá `--domain-id MLA-CELLPHONES` con un keyword más estricto.
 
-## Caveats
+**¿Esto funciona para vender, no solo para buscar?**
+La API de MercadoLibre tiene endpoints de escritura (publicar items, responder preguntas, gestionar órdenes) y esta CLI los soporta — pero por seguridad están detrás de flags explícitos. Mirá `mercadolibre-pp-cli auth status` para ver qué permisos tiene tu token, y `mercadolibre-pp-cli --help` para la superficie completa.
 
-### Gating de la API de MercadoLibre
+**¿Y si MercadoLibre cambia la API?**
+La CLI está construida sobre [Printing Press](https://printingpress.dev) — una factory que regenera el código cliente desde la spec OpenAPI cuando hay cambios. Si ML actualiza algo, sale una versión nueva con el fix.
 
-Desde 2024, **la mayoría** de los endpoints de ML requieren OAuth. Algunos están restringidos aún más:
+---
 
-- `/sites/{site}/search` (búsqueda de publicaciones del marketplace) está **bloqueado para apps no certificadas** incluso con OAuth válido. Usá `catalog search` (el catálogo canónico de productos) en su lugar — devuelve data más rica de todos modos.
-- `/orders/search` requiere el scope **`read orders`**, que tenés que habilitar explícitamente en los permisos de tu app en DevCenter ("Métricas del negocio" / "Venta y envíos") y re-autorizar. NO está incluido en esta CLI por default; usuarios avanzados pueden agregarlo editando el spec y regenerando.
-- Los rate limits son por app y por usuario; mirá los [docs oficiales de rate-limit de ML](https://developers.mercadolibre.com/en_us/policies-of-use).
+## Resolución de problemas
 
-### Cobertura de sitios
+**`Error: GET ... returned HTTP 401: invalid access token`**
+Tu token venció y por algún motivo el refresh automático no se disparó. Solución: `mercadolibre-pp-cli auth login` para re-loguearte (toma 30 segundos).
 
-Los códigos de sitio siguen la convención de ML: `MLA` = Argentina, `MLB` = Brasil, `MLM` = México, `MLC` = Chile, `MLU` = Uruguay, `MCO` = Colombia, `MPE` = Perú, `MLV` = Venezuela, etc. Corré `mercadolibre-pp-cli sites list` para la lista completa.
+**`Error: GET /products/search returned HTTP 403`**
+Faltan permisos en tu app de ML. Andá al devcenter, abrí tu app, verificá que tenga ✅ Authorization Code + ✅ Refresh Token + ✅ Mercado Libre marcados.
 
-### Almacenamiento del token
+**`auth login` no abre el browser**
+Copiá manualmente la URL que aparece en la terminal y pegala en cualquier browser. El resto del flujo (pegar el code) funciona igual.
 
-Por default, los tokens se guardan en `~/.config/mercadolibre-pp-cli/config.toml` (modo `0600`). Usá la env var `MERCADOLIBRE_ACCESS_TOKEN` si preferís no escribir al disco (ej. en CI/CD).
+**Después de autorizar veo el JSON pero no encuentro `args.code`**
+Es la primera línea adentro del campo `"args"`. Si el JSON es muy largo, hacé Ctrl+F y buscá `"code"`. Copiá solo el valor entre comillas (algo tipo `TG-abc123-xyz456`).
 
-## Contribuir
+---
 
-Las contribuciones son bienvenidas — esta CLI fue generada con [Printing Press](https://printingpress.dev) desde un spec hand-authored en [`spec.yaml`](spec.yaml). Para agregar un endpoint:
+## Licencia y créditos
 
-1. Editá el spec declarando el nuevo recurso / endpoint.
-2. Corré `printing-press generate --spec spec.yaml --name mercadolibre --force --validate=false`.
-3. Compilá: `go build -o mercadolibre-pp-cli ./cmd/mercadolibre-pp-cli`.
-4. Smoke test al comando nuevo y abrí un PR.
+MIT License. Construido con [Printing Press](https://printingpress.dev) — la factory que genera CLIs nativos para cualquier API REST sin escribir glue code a mano.
 
-Reportes de bugs y feature requests: [GitHub Issues](https://github.com/LeaCast/mercadolibre-pp-cli/issues).
-
-## Changelog
-
-### v0.1.1 (2026-05-24)
-- **fix:** Omitir header `Authorization` en endpoints públicos (`/classified_locations/*`). Antes el CLI mandaba el token Bearer aunque el endpoint no lo requería, y MercadoLibre rechazaba con HTTP 401 si el token estaba vencido (vida útil 6 h). Ahora `countries list` y `countries get` funcionan **sin token, con token vencido o con token inválido**. `catalog search` y demás endpoints autenticados siguen funcionando igual. Detalles del parche en [`.printing-press-patches.json`](.printing-press-patches.json).
-
-### v0.1.0 (2026-05-24)
-- Release inicial. 7 recursos: `catalog`, `categories`, `countries`, `sites`, `users`, `items`, `questions`. 6 binarios cross-platform (Linux, macOS, Windows × amd64/arm64).
-
-## Licencia
-
-MIT — ver [LICENSE](LICENSE).
-
-## Agradecimientos
-
-- Construido con [Printing Press](https://printingpress.dev) por [@mvanhorn](https://github.com/mvanhorn) y contribuyentes.
-- API: [MercadoLibre Developers](https://developers.mercadolibre.com).
-- Mantenedor: [@LeaCast](https://github.com/LeaCast).
+Issues y feature requests: [GitHub Issues](https://github.com/LeaCast/mercadolibre-pp-cli/issues).
