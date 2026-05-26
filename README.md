@@ -330,6 +330,74 @@ mercadolibre-pp-cli items search --q "iphone 15" --site-id MLM --domain-id MLM-C
 
 **Claude te responde** con una tabla comparativa de los 9 resultados, convirtiendo todas las monedas a USD al cambio del día para que veas en qué país conviene más, y te marca las diferencias clave (capacidad, color, envío internacional posible).
 
+### Ejemplo NL #3 — Tamaño de mercado por categoría
+
+**Vos le decís a Claude:**
+
+> "Quiero saber qué rubros son los más grandes en MercadoLibre Argentina. Dame las 10 categorías raíz ordenadas por cuántas publicaciones tienen."
+
+**Claude procesa las 32 categorías raíz en paralelo:**
+
+```bash
+mercadolibre-pp-cli categories list-by-site MLA --json \
+  | jq -r '.results[].id' | tr -d '\r' | while read CAT; do
+    mercadolibre-pp-cli categories get "$CAT" --json 2>/dev/null \
+      | jq -r '.results | [.name, .total_items_in_this_category] | @tsv'
+  done | sort -t$'\t' -k2 -n -r | head -10
+```
+
+**Resultado real** (corrida 2026-05-26):
+
+| Categoría                  | Publicaciones |
+| -------------------------- | ------------- |
+| Hogar, Muebles y Jardín    | 22.382.690    |
+| Libros, Revistas y Cómics  | 22.217.618    |
+| Ropa y Accesorios          | 14.858.016    |
+| Accesorios para Vehículos  | 14.439.070    |
+| Herramientas               | 5.903.857     |
+| Deportes y Fitness         | 5.658.204     |
+| Juegos y Juguetes          | 5.544.480     |
+| Belleza y Cuidado Personal | 4.423.272     |
+| Celulares y Teléfonos      | 3.637.397     |
+| Arte, Librería y Mercería  | 3.586.821     |
+
+La foto del mercado argentino en 30 segundos — útil si estás pensando en qué rubro entrar a vender.
+
+### Ejemplo NL #4 — Saturación de oferta cross-país
+
+**Vos le decís a Claude:**
+
+> "Pensaba importar productos Dyson Airwrap para revender. ¿En qué país hay menos competencia? Dame el número de productos en MercadoLibre Argentina, Brasil, México, Colombia y Uruguay."
+
+**Claude ejecuta una iteración sobre los 5 sites:**
+
+```bash
+for SITE in MLA MLB MLM MCO MLU; do
+  TOTAL=$(mercadolibre-pp-cli catalog search --q "dyson airwrap" \
+    --site-id "$SITE" --limit 1 --json | jq -r '.results.paging.total // 0')
+  echo "$SITE: $TOTAL"
+done
+```
+
+**Resultado real** (corrida 2026-05-26, ordenado de menor a mayor saturación):
+
+| País      | Productos en catálogo  |
+| --------- | ---------------------- |
+| Brasil    | 1.217 ← menos saturado |
+| Uruguay   | 1.399                  |
+| Argentina | 1.401                  |
+| Colombia  | 1.507                  |
+| México    | 1.670                  |
+
+Una decisión de arbitraje internacional en 4 segundos. **Caveat técnico:** `catalog search` capea el total en 10.000 — para keywords muy populares ("apple watch") todos los países te devuelven 10.000 y el ranking pierde sentido. Para que el signal sea útil, usá queries específicas (marca + modelo).
+
+> **Límites del API que conviene saber:**
+>
+> - `items/{id}` (detalle individual de publicación) está restringido al dueño del listing — incluso con OAuth, no podés leer el item de otro seller.
+> - `users/{id}/items/search` (listar todas las publicaciones de un seller ajeno) también restringido.
+>
+> Lo que sí funciona público con OAuth: `items search`, `catalog search`, `users get` (perfil + reputación), `categories list-by-site`, `categories get`. Suficiente para casos reales de comparación, due diligence y market research.
+
 ---
 
 ## CLI vs buscar igual en la web
